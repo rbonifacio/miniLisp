@@ -1,0 +1,2 @@
+# Enable auto-env through the sdkman-init script: `sdk env`
+java=17.0.11-zulu
