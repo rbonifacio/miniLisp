@@ -5,7 +5,7 @@ grammar MiniLisp;
 //
 // MiniLisp BNF (plain BNF, not ANTLR syntax — translate it into ANTLR rules):
 //
-//   <program> ::= <expr>*
+//   <program> ::= <decl>* <expr>*
 //
 //   <expr>    ::= <atom>
 //               | "(" <expr>* ")"
@@ -16,7 +16,7 @@ grammar MiniLisp;
 //   <int>     ::= "-"? <digit>+
 //   <float>   ::= "-"? <digit>+ "." <digit>+
 //   <string>  ::= '"' (any character except '"', or an escaped '\' + character)* '"'
-//   <bool>    ::= "#t" | "#f"
+//   <bool>    ::= "true" | "false"
 //   <symbol>  ::= <symbol-start> <symbol-char>*
 //   <symbol-start> ::= letter | "_" | "+" | "-" | "*" | "/" | "<" | ">" | "=" | "!" | "?"
 //   <symbol-char>  ::= <symbol-start> | <digit>
@@ -25,13 +25,28 @@ grammar MiniLisp;
 //   whitespace and ';'-to-end-of-line comments are insignificant (skipped).
 // ---------------------------------------------------------------------------
 
+program : decl* expr EOF ;
 
-program : expr* EOF ;
+decl : 'define' '(' name = Id args = Id* ')' '(' body = expr ')' ;
 
-expr : ' ';
-// passo 0: 
-//   - especificar whitespaces and comments
-//   - especificar digitos
-//   - especificar Integer
-//   
-// em seguida, seguir com os alunos. 
+expr : Integer
+     | String
+     | Boolean
+     | Id
+     ;
+
+Integer : ('0' | '-'? ([1-9] DIGIT*)) ;
+String : '"' ~["]* '"' ;
+Boolean : 'True' | 'False' ;
+
+Id : ALPHA ALPHA_NUM* ;
+
+WS : [ \t\n\r]+ -> skip ;
+
+COMMENT : ';' ~[\r\n]* -> skip ;
+
+fragment ALPHA : ('a' .. 'z') | ('A' .. 'Z') ;
+
+fragment ALPHA_NUM : ALPHA | DIGIT ;
+
+fragment DIGIT : [0-9] ;

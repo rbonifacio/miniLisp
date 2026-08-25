@@ -1,8 +1,9 @@
 package br.ufpe.cin.minilisp
 
-/** The abstract syntax tree for miniLisp, produced from the ANTLR parse tree
-  * by [[Parser]] and consumed by [[Interpreter]].
-  */
+case class Program(decls: List[Decl], expr: Expr)
+
+case class Decl(name: String, args: List[String], body: Expr)
+
 enum Expr:
   case IntLit(value: Long)
   case FloatLit(value: Double)

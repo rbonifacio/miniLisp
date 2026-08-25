@@ -1,58 +1,137 @@
 package br.ufpe.cin.minilisp
 
-/** Unit tests for [[Parser]]: source text is turned into [[Expr]] trees, and
-  * constructs outside the current integer-only grammar are rejected.
+/** Unit tests for [[Parser]]: source text is turned into [[Expr]] trees.
+  *
+  * The grammar so far recognizes a program as `decl* expr EOF`, where `expr`
+  * is one of `Integer`, `String`, `Boolean`, or `Id`; `define` declarations
+  * are parsed but not yet reflected in the returned [[Expr]]; and `;`-to-
+  * end-of-line comments are skipped like whitespace. [[Parser.visitExpr]]
+  * itself only builds an [[Expr]] for `Integer` and `Id` so far, so `String`
+  * and `Boolean` tokens parse syntactically but fail in the visitor.
+  * Lists, quote, floats, and multiple top-level expressions are not
+  * implemented yet and are expected to be rejected.
   */
 class ParserSpec extends munit.FunSuite:
 
-  override def munitIgnore: Boolean = true
-
   import Expr.*
 
-  private def parse(source: String): List[Expr] = Parser.parse(source)
+  private def parse(source: String): Expr = Parser.parse(source)
 
-  test("single integer becomes IntLit") {
-    assertEquals(parse("42"), List(IntLit(42)))
+  // -- integers --------------------------------------------------------
+
+  test("a positive integer becomes IntLit") {
+    assertEquals(parse("42"), IntLit(42))
   }
 
   test("zero is a valid integer") {
-    assertEquals(parse("0"), List(IntLit(0)))
-    assertEquals(parse("-0"), List(IntLit(0)))
+    assertEquals(parse("0"), IntLit(0))
   }
 
-  test("a program is a sequence of integers") {
-    assertEquals(parse("0 1 2"), List(IntLit(0), IntLit(1), IntLit(2)))
+  test("a negative integer becomes IntLit") {
+    assertEquals(parse("-7"), IntLit(-7))
   }
 
-  test("negative integers follow the BNF optional minus") {
-    assertEquals(parse("-7"), List(IntLit(-7)))
-    assertEquals(parse("-1 0 1"), List(IntLit(-1), IntLit(0), IntLit(1)))
+  test("rejects negative zero") {
+    intercept[ParseError](parse("-0"))
   }
 
-  test("integers may have leading zeros") {
-    assertEquals(parse("007"), List(IntLit(7)))
+  test("rejects a lone minus") {
+    intercept[ParseError](parse("-"))
   }
 
-  test("empty input and comment-only input are empty programs") {
-    assertEquals(parse(""), Nil)
-    assertEquals(parse("   "), Nil)
-    assertEquals(parse("  ; just a comment\n"), Nil)
+  test("rejects integers with leading zeros") {
+    intercept[ParseError](parse("007"))
   }
 
-  test("whitespace between integers is skipped") {
-    assertEquals(parse("1\t2\n3"), List(IntLit(1), IntLit(2), IntLit(3)))
+  // -- symbols -----------------------------------------------------------
+
+  test("an identifier becomes Sym") {
+    assertEquals(parse("foo"), Sym("foo"))
+    assertEquals(parse("x1"), Sym("x1"))
   }
 
-  test("line comments are skipped") {
-    assertEquals(
-      parse("1 ; this is ignored\n  2"),
-      List(IntLit(1), IntLit(2))
-    )
+  test("true and false are ordinary symbols, not booleans, until <bool> is implemented") {
+    assertEquals(parse("true"), Sym("true"))
+    assertEquals(parse("false"), Sym("false"))
   }
 
-  test("a comment may appear before the first integer") {
-    assertEquals(parse("; header\n10"), List(IntLit(10)))
+  test("rejects symbol-start characters not yet in the grammar") {
+    intercept[ParseError](parse("+"))
+    intercept[ParseError](parse("*"))
   }
+
+  test("rejects a symbol starting with a digit") {
+    intercept[ParseError](parse("1x"))
+  }
+
+  // -- whitespace ----------------------------------------------------------
+
+  test("surrounding whitespace is skipped") {
+    assertEquals(parse("  42  "), IntLit(42))
+    assertEquals(parse("\t-7\n"), IntLit(-7))
+  }
+
+  // -- comments -------------------------------------------------------------
+
+  test("a leading line comment is skipped") {
+    assertEquals(parse("; a comment\n10"), IntLit(10))
+  }
+
+  test("a trailing line comment is skipped, with or without a preceding space") {
+    assertEquals(parse("10 ; trailing comment"), IntLit(10))
+    assertEquals(parse("10; trailing comment"), IntLit(10))
+  }
+
+  test("consecutive comment lines are skipped") {
+    assertEquals(parse("; one\n; two\n10"), IntLit(10))
+  }
+
+  test("a comment inside a declaration is skipped") {
+    assertEquals(parse("define(f)(1) ; comment\n2"), IntLit(2))
+  }
+
+  test("a comment-only program is still rejected, since an expr is still required") {
+    intercept[ParseError](parse("; only a comment"))
+  }
+
+  // -- program shape: only one trailing expression is supported today -----
+
+  test("rejects more than one top-level expression") {
+    intercept[ParseError](parse("1 2"))
+    intercept[ParseError](parse("1 x"))
+  }
+
+  test("rejects empty input") {
+    intercept[ParseError](parse(""))
+    intercept[ParseError](parse("   "))
+  }
+
+  // -- declarations ---------------------------------------------------------
+
+  test("a leading declaration is parsed but does not appear in the result") {
+    assertEquals(parse("define(f)(1) 2"), IntLit(2))
+  }
+
+  test("declaration syntax tolerates surrounding whitespace") {
+    assertEquals(parse("define (f) (1) 2"), IntLit(2))
+  }
+
+  test("a declaration may have multiple parameters") {
+    assertEquals(parse("define(f x y)(1) 2"), IntLit(2))
+  }
+
+  // -- string and boolean literals: lexed, but not yet built by the visitor --
+
+  test("strings are accepted by the grammar but not yet handled by visitExpr") {
+    intercept[IllegalArgumentException](parse("\"hi\""))
+  }
+
+  test("booleans are accepted by the grammar but not yet handled by visitExpr") {
+    intercept[IllegalArgumentException](parse("True"))
+    intercept[IllegalArgumentException](parse("False"))
+  }
+
+  // -- constructs from the BNF that aren't implemented yet -------------------
 
   test("rejects lists") {
     intercept[ParseError](parse("(1 2)"))
@@ -62,29 +141,13 @@ class ParserSpec extends munit.FunSuite:
     intercept[ParseError](parse("'1"))
   }
 
-  test("rejects symbols") {
-    intercept[ParseError](parse("foo"))
-    intercept[ParseError](parse("+"))
-  }
-
   test("rejects floats") {
     intercept[ParseError](parse("1.5"))
   }
 
-  test("rejects strings") {
-    intercept[ParseError](parse("\"hi\""))
-  }
+  // -- error reporting --------------------------------------------------------
 
-  test("rejects booleans") {
-    intercept[ParseError](parse("#t"))
-    intercept[ParseError](parse("#f"))
-  }
-
-  test("rejects a lone minus") {
-    intercept[ParseError](parse("-"))
-  }
-
-  test("ParseError reports the source location") {
-    val err = intercept[ParseError](parse("1 x"))
+  test("ParseError reports the source location for lexer errors") {
+    val err = intercept[ParseError](parse("+"))
     assert(err.message.contains("line 1:"), clue = err.message)
   }
