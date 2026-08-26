@@ -158,6 +158,30 @@ class ParserSpec extends munit.FunSuite:
     assertEquals(parse("(- x)"), NegExpr(Symbol("x")))
   }
 
+  test("not with a single operand is a NotExpr") {
+    assertEquals(parse("(not True)"), NotExpr(BoolLit(true)))
+    assertEquals(parse("(not x)"), NotExpr(Symbol("x")))
+  }
+
+  test("not nests over an arbitrary expression") {
+    assertEquals(
+      parse("(not (> x 0))"),
+      NotExpr(BinExpr(">", Symbol("x"), IntLit(0)))
+    )
+  }
+
+  test("not expressions nest") {
+    assertEquals(parse("(not (not True))"), NotExpr(NotExpr(BoolLit(true))))
+  }
+
+  test("rejects not with no operand") {
+    intercept[ParseError](parse("(not)"))
+  }
+
+  test("rejects not with two operands") {
+    intercept[ParseError](parse("(not True False)"))
+  }
+
   test("minus glued to a digit lexes as a single negative-integer atom, not an operator") {
     // "-5" is itself a valid Integer token, so this is a two-element list,
     // not a subtraction: leave a space after '-' to get BinExpr/NegExpr.
