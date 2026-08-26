@@ -6,3 +6,7 @@ project/project/
 .bloop/
 *.class
 *.log
+
+# IDE / build-tool local state
+.vscode/
+project/metals.sbt
