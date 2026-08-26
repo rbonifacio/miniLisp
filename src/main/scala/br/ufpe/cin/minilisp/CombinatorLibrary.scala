@@ -87,9 +87,23 @@ def oneof(options: List[Char]): Parser[Char] =
 def whitespace: Parser[Unit] =
   many1(oneof(List(' ', '\t', '\n', '\r'))) >>= { _ => pure(()) }
 
-// Tudo que deve ser descartado entre dois tokens.
+// Comentário de linha, conforme a regra COMMENT da gramática ANTLR:
+// '//' seguido de tudo até o fim da linha.
+//
+// Os backticks em `~` são necessários: em posição de prefixo o compilador
+// leria ~(xs) como xs.unary_~.
+def comment: Parser[Unit] =
+  string("//") >>= { _ =>
+    many(`~`(List('\n', '\r'))) >>= { _ => pure(()) } }
+
+// Tudo que deve ser descartado entre dois tokens. Espaço e comentário são
+// exatamente a mesma coisa do ponto de vista do parser -- ambos separam
+// tokens sem contribuir com nada -- então pertencem ao mesmo lugar.
+//
+// `many` continua seguro: whitespace consome ao menos um caracter, comment
+// consome ao menos dois.
 def junk: Parser[Unit] =
-  many(whitespace) >>= { _ => pure(()) }
+  many(whitespace | comment) >>= { _ => pure(()) }
 
 // O combinador central da convenção: aplica `p` e descarta o que vier depois.
 def token[A](p: Parser[A]): Parser[A] =
