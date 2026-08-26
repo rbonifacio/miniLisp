@@ -10,7 +10,7 @@ import br.ufpe.cin.minilisp.Expr.*
 // a composição preserva o invariante sozinha.
 // ---------------------------------------------------------------------------
 
-def expr: Parser[Expr] = identifier | integer | slist
+def expr: Parser[Expr] = ifExpr | identifier | integer | slist
 
 def identifier: Parser[Expr] = token(
   alpha >>= { first =>
@@ -27,5 +27,15 @@ def slist: Parser[Expr] =
   symb('(') >>= { _ =>
     many(expr) >>= { items =>
       symb(')') >>= { _ => pure(SList(items)) } } }
+
+// A convenção `token` cuida do espaçamento aqui também: nenhuma menção a
+// espaço, apesar de a regra ter cinco elementos.
+def ifExpr: Parser[Expr] =
+  symb('(') >>= { _ =>
+    keyword("if") >>= { _ =>
+      expr >>= { cond =>
+        expr >>= { thenB =>
+          expr >>= { elseB =>
+            symb(')') >>= { _ => pure(IfExpr(cond, thenB, elseB)) } } } } } }
 
 def parseExpr: Parser[Expr] = parseAll(expr)

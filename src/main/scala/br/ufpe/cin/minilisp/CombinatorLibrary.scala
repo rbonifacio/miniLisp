@@ -115,3 +115,7 @@ def symb(c: Char): Parser[Char] =
 // Único ponto do sistema em que o espaço à esquerda é descartado.
 def parseAll[A](p: Parser[A]): Parser[A] =
   junk >>= { _ => p }
+
+// Uma palavra reservada é apenas um literal seguido de junk.
+def keyword(s: String): Parser[String] =
+  token(string(s))
