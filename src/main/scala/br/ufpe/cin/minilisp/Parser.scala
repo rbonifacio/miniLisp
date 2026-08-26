@@ -21,18 +21,57 @@ final case class ParseError(message: String) extends RuntimeException(message)
   */
 object Parser extends MiniLispBaseVisitor[Expr]:
 
-  /** Parse MiniLisp source into a program (a sequence of expressions). */
+  /** Parse MiniLisp source into its trailing expression, discarding any
+    * leading declarations. Use [[parseProgram]] to keep them.
+    */
   def parse(source: String): Expr =
+    withParseErrors(source)(from)
+
+  /** Parse MiniLisp source into a complete [[Program]]: the leading
+    * declarations plus the trailing expression they are in scope for.
+    */
+  def parseProgram(source: String): Program =
+    withParseErrors(source)(programFrom)
+
+  /** Translate an already-built `program` parse tree, keeping only its
+    * trailing expression.
+    */
+  def from(ctx: MiniLispParser.ProgramContext): Expr =
+    ctx.expr().accept(this)
+
+  /** Translate an already-built `program` parse tree in full. */
+  def programFrom(ctx: MiniLispParser.ProgramContext): Program =
+    Program(ctx.decl().asScala.map(declFrom).toList, ctx.expr().accept(this))
+
+  private def declFrom(ctx: MiniLispParser.DeclContext): Decl =
+    Decl(
+      ctx.name.getText,
+      ctx.params.asScala.map(_.getText).toList,
+      ctx.body.accept(this)
+    )
+
+  /** Parse a single REPL entry: either a declaration to add to the session
+    * (`Left`) or an expression to evaluate (`Right`).
+    */
+  def parseReplEntry(source: String): Either[Decl, Expr] =
     val antlrParser = parserFor(source)
-    try from(antlrParser.program())
+    try
+      antlrParser.replEntry() match
+        case ctx: MiniLispParser.ReplDeclContext => Left(declFrom(ctx.decl()))
+        case ctx: MiniLispParser.ReplExprContext => Right(ctx.expr().accept(this))
+        case other => throw ParseError(s"unrecognized input: ${other.getText}")
     catch
       case e: ParseError                 => throw e
       case e: ParseCancellationException =>
         throw ParseError(Option(e.getCause).map(_.getMessage).getOrElse("parse failed"))
 
-  /** Translate an already-built `program` parse tree. */
-  def from(ctx: MiniLispParser.ProgramContext): Expr =
-    ctx.expr().accept(this)
+  private def withParseErrors[A](source: String)(f: MiniLispParser.ProgramContext => A): A =
+    val antlrParser = parserFor(source)
+    try f(antlrParser.program())
+    catch
+      case e: ParseError                 => throw e
+      case e: ParseCancellationException =>
+        throw ParseError(Option(e.getCause).map(_.getMessage).getOrElse("parse failed"))
 
   override def visitAtomExpr(ctx: MiniLispParser.AtomExprContext): Expr =
     ctx.atom().accept(this)
@@ -48,19 +87,22 @@ object Parser extends MiniLispBaseVisitor[Expr]:
 
   override def visitBinExpr(ctx: MiniLispParser.BinExprContext): Expr =
     val op =
-      if ctx.BinArithOpr() != null then ctx.BinArithOpr().getText
-      else if ctx.BinRelOpr() != null then ctx.BinRelOpr().getText
-      else ctx.MinusOpr().getText
-    Expr.BinExpr(op, ctx.expr(0).accept(this), ctx.expr(1).accept(this))
+      if ctx.BinArithOp() != null then ctx.BinArithOp().getText
+      else if ctx.BinRelOp() != null then ctx.BinRelOp().getText
+      else ctx.MinusOp().getText
+    Expr.BinExpr(op, ctx.lhs.accept(this), ctx.rhs.accept(this))
 
   override def visitNegExpr(ctx: MiniLispParser.NegExprContext): Expr =
-    Expr.NegExpr(ctx.expr().accept(this))
+    Expr.NegExpr(ctx.operand.accept(this))
+
+  override def visitNotExpr(ctx: MiniLispParser.NotExprContext): Expr =
+    Expr.NotExpr(ctx.operand.accept(this))
 
   override def visitLetExpr(ctx: MiniLispParser.LetExprContext): Expr =
-    Expr.LetExpr(ctx.Symbol().getText, ctx.expr(0).accept(this), ctx.expr(1).accept(this))
+    Expr.LetExpr(ctx.name.getText, ctx.init.accept(this), ctx.body.accept(this))
 
-  override def visitIfThenElseExpr(ctx: MiniLispParser.IfThenElseExprContext): Expr =
-    Expr.IfExpr(ctx.expr(0).accept(this), ctx.expr(1).accept(this), ctx.expr(2).accept(this))
+  override def visitIfExpr(ctx: MiniLispParser.IfExprContext): Expr =
+    Expr.IfExpr(ctx.cond.accept(this), ctx.thenBranch.accept(this), ctx.elseBranch.accept(this))
 
   override def visitListOfExpr(ctx: MiniLispParser.ListOfExprContext): Expr =
     Expr.SList(ctx.expr().asScala.map(_.accept(this)).toList)

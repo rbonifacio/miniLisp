@@ -2,13 +2,20 @@ grammar MiniLisp;
 
 program : decl* expr EOF ;
 
-decl : 'define' '(' name = Symbol args = Symbol* ')' '(' body = expr ')' ;
+// A single REPL entry: either a declaration to add to the session, or an
+// expression to evaluate. Unlike `program`, a declaration may stand alone.
+replEntry : decl EOF   # ReplDecl
+          | expr EOF   # ReplExpr
+          ;
 
-expr : atom                                                # AtomExpr
-     | '(' (BinArithOpr | BinRelOpr | MinusOpr) expr expr ')' # BinExpr
-     | '(' MinusOpr expr ')'                                # NegExpr
-     | '(' 'let' '(' Symbol expr ')' expr ')'                # LetExpr
-     | '(' 'if' expr expr expr ')'                           # IfThenElseExpr
+decl : 'define' '(' name = Symbol params += Symbol* ')' '(' body = expr ')' ;
+
+expr : atom                                                  # AtomExpr
+     | '(' (BinArithOp | BinRelOp | MinusOp) lhs = expr rhs = expr ')'    # BinExpr
+     | '(' MinusOp operand = expr ')'                        # NegExpr
+     | '(' 'not' operand = expr ')'                          # NotExpr
+     | '(' 'let' '(' name = Symbol init = expr ')' body = expr ')'        # LetExpr
+     | '(' 'if' cond = expr thenBranch = expr elseBranch = expr ')'       # IfExpr
      | '(' expr* ')'                                         # ListOfExpr
      ;
 
@@ -19,9 +26,9 @@ atom : Integer
      | Symbol
      ;
 
-MinusOpr : '-' ;
-BinArithOpr : ('+' | '*' | '/') ;
-BinRelOpr : ('>' | '<' | '=' | '>=' | '<=' | '/=');
+MinusOp : '-' ;
+BinArithOp : ('+' | '*' | '/') ;
+BinRelOp : ('>' | '<' | '=' | '>=' | '<=' | '/=');
 
 Integer : '-'? DIGIT+ ;
 Float : '-'? DIGIT+ '.' DIGIT+ ;
