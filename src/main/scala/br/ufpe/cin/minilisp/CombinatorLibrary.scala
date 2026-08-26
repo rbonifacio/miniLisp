@@ -116,6 +116,14 @@ def symb(c: Char): Parser[Char] =
 def parseAll[A](p: Parser[A]): Parser[A] =
   junk >>= { _ => p }
 
-// Uma palavra reservada é apenas um literal seguido de junk.
+// Um nome: a maior sequência de letras e dígitos disponível.
+// Este é o ponto de decisão da fronteira de átomo -- `many` é guloso, então
+// o nome sempre é consumido por inteiro antes de qualquer comparação.
+def name: Parser[String] = token(
+  alpha >>= { first =>
+    many(alpha | digit) >>= { rest =>
+      pure((first :: rest).mkString) } })
+
+// Uma palavra reservada é um nome *completo* igual a `s`, e não um prefixo.
 def keyword(s: String): Parser[String] =
-  token(string(s))
+  name >>= { n => if n == s then pure(n) else failure }

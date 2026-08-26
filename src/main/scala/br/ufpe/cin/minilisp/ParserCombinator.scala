@@ -12,10 +12,13 @@ import br.ufpe.cin.minilisp.Expr.*
 
 def expr: Parser[Expr] = ifExpr | identifier | integer | slist
 
-def identifier: Parser[Expr] = token(
-  alpha >>= { first =>
-    many(alpha | digit) >>= { rest =>
-      pure(Symbol((first :: rest).mkString)) } })
+val reserved = Set("if")
+
+// Identificador e palavra reservada agora compartilham o mesmo `name`, que
+// consome a palavra inteira. A distinção passa a ser uma comparação sobre o
+// nome já lido, e não uma corrida entre dois parsers sobre a mesma entrada.
+def identifier: Parser[Expr] =
+  name >>= { n => if reserved.contains(n) then failure else pure(Symbol(n)) }
 
 def integer: Parser[Expr] = token(
   many1(digit) >>= { ds => pure(IntLit(ds.mkString.toLong)) })
