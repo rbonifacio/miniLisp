@@ -5,13 +5,7 @@ import Value.*
 /** Constructs the top-level [[Env]] pre-populated with the builtin procedures. */
 object Builtins:
 
-  def newGlobalEnv(): Env =
-    val env = Env()
-    numeric.foreach((name, f) => env.define(name, Builtin(name, f)))
-    comparisons.foreach((name, f) => env.define(name, Builtin(name, f)))
-    lists.foreach((name, f) => env.define(name, Builtin(name, f)))
-    misc.foreach((name, f) => env.define(name, Builtin(name, f)))
-    env
+  def newGlobalEnv(): Env = ???
 
   private def asNum(v: Value): Either[Long, Double] = v match
     case IntV(i)    => Left(i)
@@ -144,7 +138,7 @@ object Builtins:
     "number?" -> { case List(IntV(_) | DoubleV(_)) => BoolV(true); case List(_) => BoolV(false); case _ => throw EvalError("number?: expects 1 argument") },
     "string?" -> { case List(StringV(_)) => BoolV(true); case List(_) => BoolV(false); case _ => throw EvalError("string?: expects 1 argument") },
     "symbol?" -> { case List(SymV(_)) => BoolV(true); case List(_) => BoolV(false); case _ => throw EvalError("symbol?: expects 1 argument") },
-    "procedure?" -> { case List(_: Closure | _: Builtin) => BoolV(true); case List(_) => BoolV(false); case _ => throw EvalError("procedure?: expects 1 argument") },
+    "procedure?" -> { case List(_: Builtin) => BoolV(true); case List(_) => BoolV(false); case _ => throw EvalError("procedure?: expects 1 argument") },
     "display" -> {
       case List(v) => print(v match { case StringV(s) => s; case other => other.render }); NilV
       case _       => throw EvalError("display: expects 1 argument")

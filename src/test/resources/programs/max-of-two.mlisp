@@ -1,0 +1,4 @@
+// returns the larger of two numbers, then exercises it
+define (max2 a b) ((if (> a b) a b))
+
+(max2 3 7)

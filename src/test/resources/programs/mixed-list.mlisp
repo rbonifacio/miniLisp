@@ -1,0 +1,2 @@
+// a heterogeneous list literal: integer, float, string, boolean and symbol
+(1 2.5 "hello" True done)

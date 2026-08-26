@@ -1,0 +1,5 @@
+// a declaration with several parameters, none of which appear in the result
+define (sum3 a b c) ((+ a (+ b c)))
+
+// declarations are parsed but do not affect the trailing expression
+(sum3 1 2 3)

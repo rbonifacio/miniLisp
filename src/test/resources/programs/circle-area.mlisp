@@ -1,0 +1,2 @@
+// let-bound temporary combined with floating point arithmetic
+(let (radius 2.5) (* radius radius))

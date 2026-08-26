@@ -1,49 +1,38 @@
 grammar MiniLisp;
 
-// ---------------------------------------------------------------------------
-// EXERCISE: implement the grammar below.
-//
-// MiniLisp BNF (plain BNF, not ANTLR syntax — translate it into ANTLR rules):
-//
-//   <program> ::= <decl>* <expr>*
-//
-//   <expr>    ::= <atom>
-//               | "(" <expr>* ")"
-//               | "'" <expr>
-//
-//   <atom>    ::= <int> | <float> | <string> | <bool> | <symbol>
-//
-//   <int>     ::= "-"? <digit>+
-//   <float>   ::= "-"? <digit>+ "." <digit>+
-//   <string>  ::= '"' (any character except '"', or an escaped '\' + character)* '"'
-//   <bool>    ::= "true" | "false"
-//   <symbol>  ::= <symbol-start> <symbol-char>*
-//   <symbol-start> ::= letter | "_" | "+" | "-" | "*" | "/" | "<" | ">" | "=" | "!" | "?"
-//   <symbol-char>  ::= <symbol-start> | <digit>
-//   <digit>   ::= "0" | "1" | ... | "9"
-//
-//   whitespace and ';'-to-end-of-line comments are insignificant (skipped).
-// ---------------------------------------------------------------------------
-
 program : decl* expr EOF ;
 
-decl : 'define' '(' name = Id args = Id* ')' '(' body = expr ')' ;
+decl : 'define' '(' name = Symbol args = Symbol* ')' '(' body = expr ')' ;
 
-expr : Integer
-     | String
-     | Boolean
-     | Id
+expr : atom                                                # AtomExpr
+     | '(' (BinArithOpr | BinRelOpr | MinusOpr) expr expr ')' # BinExpr
+     | '(' MinusOpr expr ')'                                # NegExpr
+     | '(' 'let' '(' Symbol expr ')' expr ')'                # LetExpr
+     | '(' 'if' expr expr expr ')'                           # IfThenElseExpr
+     | '(' expr* ')'                                         # ListOfExpr
      ;
 
-Integer : ('0' | '-'? ([1-9] DIGIT*)) ;
+atom : Integer
+     | Float
+     | String
+     | Boolean
+     | Symbol
+     ;
+
+MinusOpr : '-' ;
+BinArithOpr : ('+' | '*' | '/') ;
+BinRelOpr : ('>' | '<' | '=' | '>=' | '<=' | '/=');
+
+Integer : '-'? DIGIT+ ;
+Float : '-'? DIGIT+ '.' DIGIT+ ;
 String : '"' ~["]* '"' ;
 Boolean : 'True' | 'False' ;
 
-Id : ALPHA ALPHA_NUM* ;
+Symbol : ALPHA ALPHA_NUM* ;
 
 WS : [ \t\n\r]+ -> skip ;
 
-COMMENT : ';' ~[\r\n]* -> skip ;
+COMMENT : '//' ~[\r\n]* -> skip ;
 
 fragment ALPHA : ('a' .. 'z') | ('A' .. 'Z') ;
 

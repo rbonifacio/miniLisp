@@ -16,17 +16,17 @@ object Main:
   def main(args: Array[String]): Unit =
     val factDefinition =
       SList(List(
-        Sym("define"),
-        SList(List(Sym("fact"), Sym("n"))),
+        Symbol("define"),
+        SList(List(Symbol("fact"), Symbol("n"))),
         SList(List(
-          Sym("if"),
-          SList(List(Sym("="), Sym("n"), IntLit(0))),
+          Symbol("if"),
+          SList(List(Symbol("="), Symbol("n"), IntLit(0))),
           IntLit(1),
-          SList(List(Sym("*"), Sym("n"), SList(List(Sym("fact"), SList(List(Sym("-"), Sym("n"), IntLit(1)))))))
+          SList(List(Symbol("*"), Symbol("n"), SList(List(Symbol("fact"), SList(List(Symbol("-"), Symbol("n"), IntLit(1)))))))
         ))
       ))
 
-    val factCall = SList(List(Sym("fact"), IntLit(5)))
+    val factCall = SList(List(Symbol("fact"), IntLit(5)))
 
     val env = Builtins.newGlobalEnv()
     Interpreter.eval(factDefinition, env)
