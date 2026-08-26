@@ -70,6 +70,34 @@ def ~(options: List[Char]): Parser[Char] =
 def oneof(options: List[Char]): Parser[Char] =
   char >>= { v => if options.contains(v) then pure(v) else failure }
 
-// Zero ou mais caracteres de espaçamento.
-def spaces: Parser[List[Char]] =
-  many(oneof(List(' ', '\t', '\n', '\r')))
+// ---------------------------------------------------------------------------
+// ESTRATÉGIA 2: convenção de espaço à direita.
+//
+// O invariante estabelecido aqui é:
+//
+//     todo parser deixa a entrada posicionada no início do próximo token.
+//
+// Ele é preservado automaticamente por sequenciamento (>>=), alternativa (|)
+// e repetição (many), de modo que basta garanti-lo nos parsers primitivos.
+// ---------------------------------------------------------------------------
+
+// Ao menos um caracter de espaçamento.
+// IMPORTANTE: many1, e não many. Um parser que tem sucesso consumindo zero
+// caracteres faz `many` sobre ele divergir.
+def whitespace: Parser[Unit] =
+  many1(oneof(List(' ', '\t', '\n', '\r'))) >>= { _ => pure(()) }
+
+// Tudo que deve ser descartado entre dois tokens.
+def junk: Parser[Unit] =
+  many(whitespace) >>= { _ => pure(()) }
+
+// O combinador central da convenção: aplica `p` e descarta o que vier depois.
+def token[A](p: Parser[A]): Parser[A] =
+  p >>= { v => junk >>= { _ => pure(v) } }
+
+def symb(c: Char): Parser[Char] =
+  token(symbol(c))
+
+// Único ponto do sistema em que o espaço à esquerda é descartado.
+def parseAll[A](p: Parser[A]): Parser[A] =
+  junk >>= { _ => p }

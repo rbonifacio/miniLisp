@@ -3,39 +3,29 @@ package br.ufpe.cin.minilisp
 import br.ufpe.cin.minilisp.Expr.*
 
 // ---------------------------------------------------------------------------
-// ESTRATÉGIA 1: espaço em branco tratado explicitamente em cada regra.
+// ESTRATÉGIA 2: convenção de espaço à direita (`token`).
 //
-// Não há convenção alguma: cada regra que precisa aceitar espaço chama
-// `spaces` na mão, no ponto exato em que o espaço pode aparecer. É o ponto
-// de partida natural, e serve para expor o problema que as próximas
-// estratégias resolvem.
+// Nenhuma regra abaixo menciona espaço em branco. Cada parser primitivo é
+// embrulhado em `token`, que consome o espaçamento à direita; a partir daí
+// a composição preserva o invariante sozinha.
 // ---------------------------------------------------------------------------
 
 def expr: Parser[Expr] = identifier | integer | slist
 
-def identifier: Parser[Expr] =
+def identifier: Parser[Expr] = token(
   alpha >>= { first =>
     many(alpha | digit) >>= { rest =>
-      pure(Symbol((first :: rest).mkString)) } }
+      pure(Symbol((first :: rest).mkString)) } })
 
-def integer: Parser[Expr] =
-  many1(digit) >>= { ds => pure(IntLit(ds.mkString.toLong)) }
+def integer: Parser[Expr] = token(
+  many1(digit) >>= { ds => pure(IntLit(ds.mkString.toLong)) })
 
-// Repare no ruído: são quatro chamadas a `spaces` para reconhecer uma
-// construção com apenas três elementos significativos.
+// Compare com a versão anterior: as quatro chamadas a `spaces` sumiram, e a
+// regra auxiliar `items` deu lugar a um `many(expr)` direto. `many` é seguro
+// aqui porque todo `expr` consome ao menos um caracter.
 def slist: Parser[Expr] =
-  symbol('(') >>= { _ =>
-    spaces >>= { _ =>
-      items >>= { es =>
-        spaces >>= { _ =>
-          symbol(')') >>= { _ => pure(SList(es)) } } } } }
+  symb('(') >>= { _ =>
+    many(expr) >>= { items =>
+      symb(')') >>= { _ => pure(SList(items)) } } }
 
-def items: Parser[List[Expr]] =
-  (expr >>= { e =>
-    spaces >>= { _ =>
-      items >>= { es => pure(e :: es) } } }) | pure(List())
-
-// E o espaço à esquerda do programa inteiro é mais um caso especial,
-// que só existe porque não há invariante global.
-def parseExpr: Parser[Expr] =
-  spaces >>= { _ => expr }
+def parseExpr: Parser[Expr] = parseAll(expr)
