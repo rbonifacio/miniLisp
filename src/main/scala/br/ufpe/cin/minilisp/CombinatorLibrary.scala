@@ -2,8 +2,8 @@ package br.ufpe.cin.minilisp
 
 // Um Parser[A] representa uma computação que:
 //   - recebe uma String como entrada;
-//   - pode produzir zero ou mais resultados;
-//   - cada resultado contém um valor do tipo A e a entrada restante.
+//   - ou falha, ou produz exatamente um resultado;
+//   - o resultado contém um valor do tipo A e a entrada restante.
 //
 // Parser, juntamente com as operações pure e >>= definidas abaixo,
 // fornece uma estrutura monádica:
@@ -14,34 +14,37 @@ package br.ufpe.cin.minilisp
 // sequenciar parsers, fazendo com que o resultado de um parser determine
 // o próximo parser a ser executado.
 //
-type Parser[T] = (String) => List[(T, String)]
+// O tipo é Option, e não List, porque este parser é determinístico: `|` é
+// escolha ordenada, devolvendo o primeiro ramo que tem sucesso, de modo que
+// uma entrada nunca produz mais de uma análise. Com List, o caso de dois ou
+// mais resultados existiria no tipo sem existir no comportamento, e >>=
+// precisaria decidir o que fazer com ele -- a versão anterior o descartava
+// em silêncio, o que quebrava a lei `m >>= pure == m`. Com Option esse caso
+// não é sequer representável.
+//
+type Parser[T] = (String) => Option[(T, String)]
 
 def pure[A](a: A): Parser[A] = input =>
-  List((a, input))
+  Some((a, input))
 
 extension [A](p: Parser[A])
   def >>=[B](f: A => Parser[B]): Parser[B] = input =>
-    p(input) match {
-      case List() => List()
-      case List((v, newInput)) => (f(v))(newInput)
-      case other => List()
-    }
+    p(input).flatMap((v, newInput) => f(v)(newInput))
 
+  // `orElse` recebe o argumento por nome, então `q` só é executado se `p`
+  // falhar -- a escolha continua preguiçosa, como no match anterior.
   def |(q: Parser[A]): Parser[A] = input =>
-    p(input) match {
-      case List() => q(input)
-      case res  => res
-    }
+    p(input).orElse(q(input))
 
-def failure[A]: Parser[A] = _ => List.empty
+def failure[A]: Parser[A] = _ => None
 
 // Um parser que reconhece um único caracter lido
 // do input. Caso 'input' seja uma lista vazia,
 // o parser falha.
 def char: Parser[Char] = input =>
   input match {
-    case "" => List()
-    case s => List((s.head, s.tail))
+    case "" => None
+    case s  => Some((s.head, s.tail))
   }
 
 def symbol(a: Char): Parser[Char] =
