@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+#
+# minilisp -- inicia o interpretador MiniLisp.
+#
+#   ./minilisp                  sessão interativa (REPL)
+#   ./minilisp programa.mlisp   avalia um programa e imprime o resultado
+#   ./minilisp --help           mostra a ajuda do interpretador
+#
+# Compila sob demanda e depois chama a JVM diretamente, em vez de passar
+# pelo `sbt run`: o REPL usa JLine e precisa do terminal real, que o sbt
+# não repassa de forma limpa.
+
+set -euo pipefail
+
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+cache="$root/target/minilisp.classpath"
+main_class="br.ufpe.cin.minilisp.Main"
+
+# As fontes que, ao mudarem, tornam o classpath em cache obsoleto. `project/`
+# fica de fora do -newer porque `project/target` muda a cada build, o que
+# dispararia recompilação sempre.
+watched=("$root/src" "$root/build.sbt" "$root/project/build.properties" "$root/project/plugins.sbt")
+
+stale() {
+  [[ -s $cache ]] || return 0
+  [[ -n $(find "${watched[@]}" -type f -newer "$cache" -print -quit 2>/dev/null) ]]
+}
+
+if stale; then
+  echo "minilisp: compilando..." >&2
+  # `export runtime:fullClasspath` já dispara a compilação como dependência,
+  # então uma invocação do sbt resolve as duas coisas.
+  if ! out=$(cd "$root" && sbt -batch --no-colors "export runtime:fullClasspath" 2>&1); then
+    echo "$out" | grep -E '^\[error\]' >&2 || echo "$out" >&2
+    echo "minilisp: falha ao compilar" >&2
+    exit 1
+  fi
+  mkdir -p "$(dirname "$cache")"
+  printf '%s' "$(echo "$out" | tail -1)" > "$cache"
+fi
+
+exec java -cp "$(cat "$cache")" "$main_class" "$@"
