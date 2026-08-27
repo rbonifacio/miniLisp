@@ -9,8 +9,7 @@ val reserved = Set("define", "let", "if", "not", "True", "False")
 // ===========================================================================
 // program : decl* expr EOF
 // ===========================================================================
-def program: Parser[Program] =
-  parseAll(
+def program: Parser[Program] = parseAll(
     many(decl)           >>= { ds =>
     expr                 >>= { e  => pure(Program(ds, e)) } })
 
@@ -55,10 +54,10 @@ def expr: Parser[Expr]
 
 // '(' 'not' operand ')'
 def notExpr: Parser[Expr] =
-  symb('(')              >>= {    _ =>
-  keyword("not")         >>= {    _ =>
+  symb('(')              >>= {  _ =>
+  keyword("not")         >>= {  _ =>
   expr                   >>= { op =>
-  symb(')')              >>= {    _ => pure(NotExpr(op)) } } } }
+  symb(')')              >>= {  _ => pure(NotExpr(op)) } } } }
 
 // '(' (BinArithOp | BinRelOp | MinusOp) lhs rhs ')'
 //
@@ -66,24 +65,24 @@ def notExpr: Parser[Expr] =
 // tentando a forma binária primeiro, a unária só é alcançada quando de fato
 // há um único operando.
 def binExpr: Parser[Expr] =
-  symb('(')              >>= {    _ =>
-  operator               >>= { op =>
+  symb('(')              >>= {   _ =>
+  operator               >>= { op  =>
   expr                   >>= { lhs =>
   expr                   >>= { rhs =>
-  symb(')')              >>= {    _ => pure(BinExpr(op, lhs, rhs)) } } } } }
+  symb(')')              >>= {   _ => pure(BinExpr(op, lhs, rhs)) } } } } }
 
 // '(' MinusOp operand ')'
 def negExpr: Parser[Expr] =
-  symb('(')              >>= {    _ =>
-  token(string("-"))     >>= {    _ =>
+  symb('(')              >>= {  _ =>
+  token(string("-"))     >>= {  _ =>
   expr                   >>= { op =>
-  symb(')')              >>= {    _ => pure(NegExpr(op)) } } } }
+  symb(')')              >>= {  _ => pure(NegExpr(op)) } } } }
 
 // '(' expr* ')' -- a forma genérica, tentada por último.
 def slist: Parser[Expr] =
-  symb('(')              >>= {    _ =>
+  symb('(')              >>= {     _ =>
   many(expr)             >>= { items =>
-  symb(')')              >>= {    _ => pure(SList(items)) } } }
+  symb(')')              >>= {     _ => pure(SList(items)) } } }
 
 // Operadores, ordenados do mais longo para o mais curto: `string` não faz
 // maximal munch sozinho, então ">=" tem de ser tentado antes de ">", e "/="
@@ -121,13 +120,13 @@ def integer: Parser[Expr] = token(
   many1(digit)           >>= { ds =>
     s"$s${ds.mkString}".toLongOption match
       case Some(n) => pure(IntLit(n))
-      case None    => failure } })
+      case None    => failure("an integer that fits in 64 bits") } })
 
 // '"' ~["]* '"'
 def stringLit: Parser[Expr] = token(
-  symbol('"')            >>= { _  =>
+  symbol('"')             >>= { _  =>
   many(noneof(List('"'))) >>= { cs =>
-  symbol('"')            >>= { _  => pure(StringLit(cs.mkString)) } } })
+  symbol('"')             >>= { _  => pure(StringLit(cs.mkString)) } } })
 
 def boolean: Parser[Expr] = pTrue | pFalse
 
@@ -139,8 +138,9 @@ def symbolAtom: Parser[Expr] =
 
 // Um identificador é um `name` completo (maximal munch, definido na
 // biblioteca) que não seja palavra reservada.
-def identifier: Parser[String] =
-  name                   >>= { n => if reserved.contains(n) then failure else pure(n) }
+def identifier: Parser[String] = label("an identifier")(
+  name                   >>= { n =>
+    if reserved.contains(n) then failure("an identifier") else pure(n) })
 
 def parseExpr: Parser[Expr] = parseAll(expr)
 def parseDecl: Parser[Decl] = parseAll(decl)
