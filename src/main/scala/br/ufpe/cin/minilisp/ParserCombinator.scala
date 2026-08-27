@@ -126,7 +126,7 @@ def integer: Parser[Expr] = token(
 // '"' ~["]* '"'
 def stringLit: Parser[Expr] = token(
   symbol('"')            >>= { _  =>
-  many(`~`(List('"')))   >>= { cs =>
+  many(noneof(List('"'))) >>= { cs =>
   symbol('"')            >>= { _  => pure(StringLit(cs.mkString)) } } })
 
 def boolean: Parser[Expr] = pTrue | pFalse

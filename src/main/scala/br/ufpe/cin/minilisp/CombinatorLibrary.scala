@@ -67,7 +67,12 @@ def many[A](p: Parser[A]): Parser[List[A]] =
 def many1[A](p: Parser[A]): Parser[List[A]] =
   p >>= { v => many(p) >>= { vs => pure(v :: vs) } }
 
-def ~(options: List[Char]): Parser[Char] =
+// Reconhece um caracter que NÃO esteja em `options`. Simétrico de `oneof`.
+//
+// Chamava-se `~`, mas esse nome era inutilizável: em posição de prefixo o
+// compilador lê ~(xs) como xs.unary_~, obrigando a escrever `~`(xs) com
+// backticks em todo uso.
+def noneof(options: List[Char]): Parser[Char] =
   char >>= { v => if options.contains(v) then failure else pure(v) }
 
 def oneof(options: List[Char]): Parser[Char] =
@@ -92,12 +97,9 @@ def whitespace: Parser[Unit] =
 
 // Comentário de linha, conforme a regra COMMENT da gramática ANTLR:
 // '//' seguido de tudo até o fim da linha.
-//
-// Os backticks em `~` são necessários: em posição de prefixo o compilador
-// leria ~(xs) como xs.unary_~.
 def comment: Parser[Unit] =
   string("//") >>= { _ =>
-    many(`~`(List('\n', '\r'))) >>= { _ => pure(()) } }
+    many(noneof(List('\n', '\r'))) >>= { _ => pure(()) } }
 
 // Tudo que deve ser descartado entre dois tokens. Espaço e comentário são
 // exatamente a mesma coisa do ponto de vista do parser -- ambos separam
@@ -115,9 +117,22 @@ def token[A](p: Parser[A]): Parser[A] =
 def symb(c: Char): Parser[Char] =
   token(symbol(c))
 
-// Único ponto do sistema em que o espaço à esquerda é descartado.
+// Só tem sucesso no fim da entrada, sem consumir nada.
+def eof: Parser[Unit] = input =>
+  if input.isEmpty then Some(((), input)) else None
+
+// Ponto de entrada do sistema. Faz as duas coisas que nenhuma regra da
+// gramática deve ter de lembrar:
+//
+//   - descarta o espaço à esquerda (único lugar onde isso acontece, já que
+//     a convenção `token` só cuida do lado direito);
+//   - exige que `p` tenha consumido TODA a entrada.
+//
+// Sem o `eof`, "define (f x) (x) LIXO" era aceito devolvendo " LIXO" como
+// resto, e cabia a cada chamador lembrar de conferir -- exatamente o tipo
+// de obrigação implícita que a convenção `token` existe para eliminar.
 def parseAll[A](p: Parser[A]): Parser[A] =
-  junk >>= { _ => p }
+  junk >>= { _ => p >>= { v => eof >>= { _ => pure(v) } } }
 
 // Um nome: a maior sequência de letras e dígitos disponível.
 // Este é o ponto de decisão da fronteira de átomo -- `many` é guloso, então
