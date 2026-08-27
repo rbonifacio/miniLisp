@@ -7,7 +7,8 @@ import org.antlr.v4.runtime.{
   CharStreams,
   CommonTokenStream,
   RecognitionException,
-  Recognizer
+  Recognizer,
+  Token
 }
 import org.antlr.v4.runtime.misc.ParseCancellationException
 
@@ -62,16 +63,14 @@ object Parser extends MiniLispBaseVisitor[Expr]:
         case other => throw ParseError(s"unrecognized input: ${other.getText}")
     catch
       case e: ParseError                 => throw e
-      case e: ParseCancellationException =>
-        throw ParseError(Option(e.getCause).map(_.getMessage).getOrElse("parse failed"))
+      case e: ParseCancellationException => throw parseFailure(e)
 
   private def withParseErrors[A](source: String)(f: MiniLispParser.ProgramContext => A): A =
     val antlrParser = parserFor(source)
     try f(antlrParser.program())
     catch
       case e: ParseError                 => throw e
-      case e: ParseCancellationException =>
-        throw ParseError(Option(e.getCause).map(_.getMessage).getOrElse("parse failed"))
+      case e: ParseCancellationException => throw parseFailure(e)
 
   override def visitAtomExpr(ctx: MiniLispParser.AtomExprContext): Expr =
     ctx.atom().accept(this)
@@ -107,6 +106,34 @@ object Parser extends MiniLispBaseVisitor[Expr]:
   override def visitListOfExpr(ctx: MiniLispParser.ListOfExprContext): Expr =
     Expr.SList(ctx.expr().asScala.map(_.accept(this)).toList)
 
+
+  /** Turns ANTLR's bail-out into a [[ParseError]] carrying a source location.
+    *
+    * Which path an error takes depends on where it is detected.  A failure
+    * inside a rule's generated `catch` goes through `reportError` first, so
+    * [[ErrorListener]] runs and already raises a located [[ParseError]].  A
+    * token mismatch inside `match()` instead reaches
+    * `BailErrorStrategy.recoverInline`, which throws without reporting, so
+    * the listener never sees it and the wrapped `RecognitionException`
+    * carries no message.  This recovers the location from the offending
+    * token for that second path.
+    */
+  private def parseFailure(e: ParseCancellationException): ParseError =
+    val located = e.getCause match
+      case r: RecognitionException =>
+        Option(r.getOffendingToken).map { tok =>
+          val what =
+            if tok.getType == Token.EOF then "end of input" else s"'${tok.getText}'"
+          s"line ${tok.getLine}:${tok.getCharPositionInLine} unexpected $what"
+        }
+      case _ => None
+
+    // Note the flatMap: `Option(cause).map(_.getMessage)` yields Some(null)
+    // when the cause has no message, and `getOrElse` then never fires --
+    // which is how this used to surface as "parse error: null".
+    val fromCause = Option(e.getCause).flatMap(c => Option(c.getMessage))
+
+    ParseError(located.orElse(fromCause).getOrElse("parse failed"))
 
   private def parserFor(source: String): MiniLispParser =
     val lexer = MiniLispLexer(CharStreams.fromString(source))

@@ -317,6 +317,18 @@ class ParserSpec extends munit.FunSuite:
     assert(err.message.contains("line 1:"), clue = err.message)
   }
 
+  test("a token mismatch also reports a location, and never a null message") {
+    // Two different paths reach a parse failure. "(+ 1)" above is detected in
+    // the generated rule's catch, which reports through the error listener.
+    // This one is a token mismatch inside match(): `let` requires a
+    // parenthesized binding, as in (let (x 10) 1). That path is aborted by
+    // BailErrorStrategy without reporting, and used to surface as
+    // "parse error: null".
+    val err = intercept[ParseError](parse("(let x 10 1)"))
+    assert(err.message != null, clue = "the message must not be null")
+    assert(err.message.contains("line 1:"), clue = err.message)
+  }
+
   // -- sample files written in the dialect ------------------------------------
 
   test("parses factorial.mlisp: declarations are skipped, the call remains") {
